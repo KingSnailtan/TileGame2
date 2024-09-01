@@ -1,0 +1,215 @@
+@tool#Bedeutet das dieses Skript auch laufen kann ohne das spiel zu starten
+extends Node #Das bedeutet ich kann das Skript an eine Node setzen, oder ein "Körperteil"
+@export var render_tilemap1 : TileMapLayer
+@export var render_tilemap2 : TileMapLayer
+@export var render_tilemap3 : TileMapLayer
+@export var render_tilemap4 : TileMapLayer #Die Tilemap wo wir die "richtigen" Tiles draufmalen
+@export var data_tilemap : TileMapLayer#Die Tilemap wo wir die daten drin speichern
+@export var tile_atlas : TileAtlas #Hier speicher ich die daten der ganzen Tiles, wie ID, Name usw
+#@export, wenn du dich erinnerst, sagt der Variable das sie doch bitte im inspektor Rechts angezeigt
+#werden soll, damit ich sie schneller ändern kann
+
+@export var render_tiles : bool:
+	set(value):
+		evaluate_map_data()
+#Gibt uns nen Knopf um die Welt zu rendern ohne das spiel zu starten ;3
+
+@export var tilemap_size : int: 	#Größe der Tilemap
+	set(value):						#Das ist ein sogenannter "setter". Ein setter kann die variabele ändern
+		if(value % 2 != 0):			#beim setzen. In diesem Fall prüft er ob: "Wenn ich die Zahl durch 2 Teile,
+			tilemap_size = value+1	#bekomme ich einen rest? (Zahl ist ungerade). Wenn ja, füge 1 hinzu (macht sie Gerade)
+
+
+func evaluate_map_data():
+	#Ziel dieser Funktion ist es, sich die Tilemap "data_tilemap" anzugucken und über alle Tiles zu gehen.
+	#Diese will ich dann in ein Format speichern mit dem ich besser arbeiten kann, und schreibe dann auf unsere
+	#"render_tilemap" die richtigen Tiles, basierend auf den Datan die diese Funktion liest.
+	
+	#Das Dual-Grid System funktioniert so:
+	#Du hast 2 Tilemaps, eine für daten und welche für deine Grafik (Data und render). Jede Tile in der Render-Tilemap
+	#ist ein wenig versetzt, so das diese in der Mitte von 4 Data Tiles sind. Ich gucke mir dann an, welche vier
+	#Render Tile als nachbarn hat, und je nachdem sucht sich das programm dann aus, welche render tiles ich da 
+	#plazieren muss.
+	
+	#Da die Grafik Tiles immer um die hälfte einer tile versetzt sind, sind die Tile Daten dementsprechend
+	#auch im minus verschoben.
+	
+	#Grafik Tile auf Platz 0,0, hat dementsprechend die Datenfelder:
+	#0,0
+	#1,0
+	#0,1
+	#1,1
+	
+	#Dieses schema bleibt gleich, egal welche Grafik Tile du dir anguckst. 12,1 hat dann 12,1 : 11,1 : 12,0 : 11,0 usw
+	#Da wir sehr oft nachgucken welche Daten unsere Tile hat, mache ich dafür eine Funktion
+	#Siehe "func get_tile_data"
+	
+	#Alle tiles müssen gerendert werden, also machen wir 2 schleifen die zusammen einmal über die ganze map gehen.
+	
+	for x in tilemap_size:
+		for y in tilemap_size:
+			#Was für daten sind an diesen Coordinaten?
+			var tile_data = get_tile_data(Vector2i(x,y))
+			#Wenn du das herausgefunden hast, sende diese plus die coordinaten an den renderer.
+			render_tile(Vector2i(x,y),tile_data)
+			
+	
+func get_tile_data(cord : Vector2i):
+	#das "cord : Vector2i" sagt der funktion, was diese zum arbeiten braucht.
+	#cord ist der name den ich der Variable gegeben habe (kurz für Coordinaten)
+	# das ": Vector2i" sagt der Variable, was diese sein soll. In diesem Fall ein Vector2i
+	#Ein Vector2 ist  so etwas hier ->   (1,0)   oder, (1.5,6). Sind Coordinaten, nicht? =3
+	#Gibt auch Vector3 (x,y,z) oder Vector4 (x,y,z,w). Das sagt nur an wie viele nummern der typ speichern kann.
+	#das i in Vector2i, bedeutet nur das diese nur Ganze zahlen nehmen soll. Oder "integer" Zahlen.
+	
+	var tile_data : Vector4i 
+	#So speicher ich die Daten für eine Tile. 4 nummern pro tile. Die nummer steht dann
+	#dafür was es für eine tile ist, eg. sand, gras, wasser usw
+	
+	#Gespeichert werden diese in Resourcen Files, und alle resourcen files kann ich mit einer resource aufrufen
+	#die ich nur zum speichern anderer tile resourcen geschrieben habe. Hier genannt "Tile Atlas"
+	#########print("bleep bloop %s" % data_tilemap.get_cell_atlas_coords(cord + Vector2i(-1,-1)))
+	tile_data.x = tile_atlas.get_tile_by_debug_tile_atlas_coordinate(data_tilemap.get_cell_atlas_coords(cord + Vector2i(0,0))).id
+	#Lass uns diesen Befehl mal genauer angucken:
+	#tile_data.x (der erste Wert unserer Vector4 -> (x,y,z,w)
+	#und wir wollen x die ID der Data Tile oben Links zuweisen. Die ID und deren tiles sind im atlas gespeichert
+	#und können mit get_tile abgerufen werden. get_tile(blablabla) will eine coordinate haben, eine atlas coordinate.
+	#Die ist im endeffect die coordinate wo die tile im sprite atlas gespeichert ist.
+	#das widerrum finden wir heraus indem wir die tilemap fragen. Also data_tilemap.
+	#Diese hat eine funktion get_cell_atlas_coords und nimmt auch eine coordinate. Diesmal aber von der tile im spiel
+	#auf der tilemap. Diesen wert spuckt die funktion dann aus, und wird gleich von tile_atlas.get_tile genommen
+	#und verarbeitet. get tile gibt uns aber eine menge infos, wie die hunde klasse die wir gemacht haben. Die tile
+	#Klasse hat wiederum eine variable namens ID. Da get_tile(zeugs) uns diese klasse gibt, und wir nur die id wollen
+	#können wir get_tile(zeugs) einfach als variable benutzen und die .id aufrufen, oder die variable ID von der klasse die
+	# get_tile(zeugs) ausspuckt.
+	
+	tile_data.y = tile_atlas.get_tile_by_debug_tile_atlas_coordinate(data_tilemap.get_cell_atlas_coords(cord + Vector2i(1,0))).id
+	tile_data.z = tile_atlas.get_tile_by_debug_tile_atlas_coordinate(data_tilemap.get_cell_atlas_coords(cord + Vector2i(0,1))).id
+	tile_data.w = tile_atlas.get_tile_by_debug_tile_atlas_coordinate(data_tilemap.get_cell_atlas_coords(cord+data_tilemap.get_cell_atlas_coords(cord + Vector2i(1,1)))).id
+	#Das machen wir jetzt noch dreimal mehr mit den anderen versetzten coordinaten und voila, wir haben eine vector4 mit all
+	#den data tile ids die wir brauchen zum rendern.
+	
+	#Zum schluss geben wir die Daten an zurück zum weiterverarbeiten :)
+	return tile_data
+	
+func render_tile(coords : Vector2i, data : Vector4i):
+	#Welche Tile aus dem Tileset gerendert werden soll wird mit einer 4 stelligen nummer bestimmt
+	#da wir bis zu 4 berschiedene tiles pro tile haben können, brauchen wir auch 4 nummern
+	var tile1 = 0000
+	var tile2 = 0000
+	var tile3 = 0000
+	var tile4 = 0000
+	#Kurze erklärung was hier gemacht wird:
+	#Wir haben einen Vektor4. Diese kann bis zu vier verschiedene Zahlen (Oder Tile IDs) haben (Muss aber nicht)
+	#Diese müssen getrennt werden, damit jede zahl weiß wie sie zu rendern hat. Als beispiel:
+		
+	#Wir haben den Vector4 1,1,2,3
+	#Das sind 3 verschiedene Zahlen (da zwei gleich sind, die 1).
+	#diese muss ich trennen indem ich jede Zahl für sich habe, und die anderen zu einer null mache.
+	#Aus 1,1,2,3 werden also:
+		
+	#1,1,0,0
+	#0,0,2,0
+	#0,0,0,3
+	#
+	#Also im endeffekt auseinander gerissen und die nun fehlenden stellen zu einer null gemacht.
+	#
+	#Dann merken wir uns welche ID benutzt wird für jede neue Zahl
+	#
+	#1 = 1,1,0,0
+	#2 = 0,0,2,0
+	#3 = 0,0,0,3
+	#
+	#und ändern die Zahlen zu einsen und nullen um, und packen diese in einen Integer um folgendes zu bekommen:
+	#1 = 1100
+	#2 = 0010
+	#3 = 0001
+	#
+	#die 4 stellige Zahl ist gleich einer Coordinate im Spritesheet damit die Tilemap weiß welche tile zu zeigen.
+	#Die ID sagt uns, Welche Spritesheet wir benutzen sollen.
+	#
+	#Um es nochmal deutlicher zu machen, hier ein paar weitere beispiele:
+	#
+	#Start Vektor = 12,12,5,5
+	#Wird zu:
+	#12 = 1100
+	#5  = 0011
+	#
+	#Start Vektor = 22,22,22,22
+	#Wird zu:
+	#22 = 1111
+	#
+	#Start Vektor = 14,22,16,33
+	#Wird zu:
+	#14 = 1000
+	#22 = 0100
+	#16 = 0010
+	#33 = 0001
+#
+#
+#Diese beiden daten geben wir dann an eine Funktion mitsamt der Coordinate wo wir die Tile haben wollen, und es rendert uns
+#(bis zu) 4 Tiles (übereinander)
+	
+	
+	
+	var index = {} 
+	#index ist ein Dictionary (erkennt man an dem = {} ). Speichert Daten im Format Key = Value. Was der Key, oder die Value ist ist egal.
+	#Wie im beispiel 14 = 1000 wäre 14, der Key und 1000 die Value.
+	
+	for n in 4:
+		if(!index.has(data[n])):
+			index[data[n]] = n
+	#Hier gucken wir ob unser Dictionary index schon die "n"te nummer im Vector4 eingespeichert hat. Wenn nicht fügen wir
+	#sie hinzu und setzten sie gleich "n"
+	#n in diesem fall ist die Iteration der Schleife.
+	#for n in 4 bedeutet mache folgendes 4 mal, und schreibe in n rein in der wievielten schleife wir uns befinden.
+	#beim ersten mal ist n = 0
+	#beim zweiten durchlauf ist n = 1 usw
+	
+	var adder = Vector4i(1000,0100,0010,0001)
+	#Adder (oder Addierer) ist eine sammlung von nummern. Je nachdem wo welche ID vorkommt kann ich das miteinander Addieren um
+	#Die end nummer zu bekommen.
+	#Wenn wir 1,1,2,3 haben und die nummer für eins bauen machen wir
+	#1,1,0,0
+	#1 ist an stelle 1 und zwei im Vector
+	# auf stelle 1 und 2 in adder sind 1000 und 0100.
+	# also mache ich 1000 + 0100 = 1100
+	# 1,1,0,0 = 1100
+	
+	for n in 4:
+		var value = index[data[n]]
+		if(value == 0):
+			tile1+=adder[n]
+		if(value == 1):
+			tile2+=adder[n]
+		if(value == 2):
+			tile3+=adder[n]
+		if(value == 3):
+			tile4+=adder[n]
+	#hier machen wir das was ich oben beschrieben habe. Wir gucken auf welchen stellen die zahlen sind
+	#(was wir eben über uns herausgefunden haben) und rechnen die jeweiligen nummern zusammen.
+	
+	var tile_resource : TileResource
+	#platzhalter für Tile Daten
+	
+	for i in index:
+		tile_resource = tile_atlas.get_tile_by_id(i)
+		if(index[i] == 0):
+			render_tilemap1.set_cell(coords,tile_resource.source_id,tile_resource.variations[tile1])
+		if(index[i] == 1):
+			render_tilemap2.set_cell(coords,tile_resource.source_id,tile_resource.variations[tile2])
+		if(index[i] == 2):
+			render_tilemap3.set_cell(coords,tile_resource.source_id,tile_resource.variations[tile3])
+		if(index[i] == 3):
+			render_tilemap4.set_cell(coords,tile_resource.source_id,tile_resource.variations[tile4])
+	#Hier setzten wir dem Platzhalter die Resoruce zu, die zu der jeweiligen TIle ID passt.
+	#Dann gucken wir mithilfe der Tiledaten nach welche Tile auf welche tilemap muss, und sagen der
+	#tilemap das sie diese doch bitte dann auch platzieren soll.
+	#Hier ist der punkt wo die hübeschen tiles endlich auf dem bild angezeigt werden :3
+	
+#region Process and Ready
+func _ready() -> void:
+	pass # Replace with function body.
+func _process(delta: float) -> void:
+	pass
+#endregion
